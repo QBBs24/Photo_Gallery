@@ -24,9 +24,11 @@ export interface Photo {
   height: number;
   aspectRatio: number;
   variants: {
-    original: string;
-    medium: string;
     thumb: string;
+    thumb_2x?: string;
+    display?: string;
+    original: string;
+    lqip?: string;
     segmentation?: {
       isSegmented: boolean;
       segmentCount: number;
@@ -57,9 +59,11 @@ export interface UploadEvidence {
   sizeBytes: number;
   format: string;
   variants: {
-    original: string;
-    medium: string;
     thumb: string;
+    thumb_2x?: string;
+    display: string;
+    original: string;
+    lqip?: string;
   };
 }
 

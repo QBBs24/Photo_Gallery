@@ -239,9 +239,11 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     const keysToDelete: string[] = [];
     const variants = photo.variants as any;
     if (variants) {
-      if (typeof variants.original === 'string') keysToDelete.push(variants.original);
-      if (typeof variants.medium === 'string') keysToDelete.push(variants.medium);
       if (typeof variants.thumb === 'string') keysToDelete.push(variants.thumb);
+      if (typeof variants.thumb_2x === 'string') keysToDelete.push(variants.thumb_2x);
+      if (typeof variants.display === 'string') keysToDelete.push(variants.display);
+      if (typeof variants.original === 'string') keysToDelete.push(variants.original);
+      if (typeof variants.lqip === 'string') keysToDelete.push(variants.lqip);
       if (variants.segmentation?.segments && Array.isArray(variants.segmentation.segments)) {
         for (const seg of variants.segmentation.segments) {
           if (seg.key) keysToDelete.push(seg.key);

@@ -1,3 +1,8 @@
+import os from 'os';
+
+// Tune UV_THREADPOOL_SIZE to match CPU cores before libuv/Sharp initializes
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || String(Math.max(4, os.cpus().length));
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

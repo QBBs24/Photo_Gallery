@@ -138,10 +138,12 @@ export const ImageDetailsView: React.FC = () => {
                 ))}
               </div>
             ) : (
-              /* Standard medium WebP variant */
+              /* High-fidelity display WebP variant (1440px) */
               <img
-                src={getImageUrl(photo.storageKey, 'medium')}
+                src={getImageUrl(photo.storageKey, 'display')}
                 alt={photo.title}
+                width={photo.width}
+                height={photo.height}
                 className="w-full max-h-[70vh] object-contain"
               />
             )}

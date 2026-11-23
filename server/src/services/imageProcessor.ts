@@ -1,9 +1,13 @@
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
 import { nanoid } from 'nanoid';
+import pLimit from 'p-limit';
 import { uploadToStorage } from './storage.js';
 
 export const MAX_PIXELS = 40_000_000; // 40 million pixels
+
+// Global concurrency limiter: max 2 simultaneous heavy Sharp pipelines to protect memory
+const processLimit = pLimit(2);
 
 const ACCEPTED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -44,9 +48,11 @@ export interface ProcessedVariantResult {
   height: number;
   aspectRatio: number;
   variants: {
-    original: string;
-    medium: string;
     thumb: string;
+    thumb_2x: string;
+    display: string;
+    original: string;
+    lqip: string;
     segmentation?: {
       isSegmented: boolean;
       segmentCount: number;
@@ -143,118 +149,171 @@ export async function validateImageFile(
 
 /**
  * Stage 2: Convert to WebP, rotate according to EXIF, strip EXIF metadata,
- * create standard variants, and for large images slice into 10 row segments.
+ * create standard variants concurrently via .clone(), and for large images slice into 10 row segments.
  */
 export async function processAndUploadImage(
   validated: ValidatedFile,
   index: number,
   title?: string
 ): Promise<ProcessedVariantResult> {
-  const { originalFile, storageKey } = validated;
+  return processLimit(async () => {
+    const { originalFile, storageKey } = validated;
 
-  // Re-orient buffer based on EXIF to get normalized orientation & strip EXIF metadata
-  const orientedBuffer = await sharp(originalFile.buffer, { limitInputPixels: MAX_PIXELS })
-    .rotate() // Auto-orient based on EXIF tags
-    .toBuffer();
+    // Decode once and auto-orient based on EXIF (strips EXIF & GPS tags on output)
+    const basePipeline = sharp(originalFile.buffer, {
+      limitInputPixels: MAX_PIXELS,
+      failOn: 'error',
+    }).rotate();
 
-  const orientedMeta = await sharp(orientedBuffer).metadata();
-  const width = orientedMeta.width || validated.width;
-  const height = orientedMeta.height || validated.height;
-
-  // 1. Generate WebP Original (highest fidelity, stripped of EXIF)
-  const originalWebpBuffer = await sharp(orientedBuffer)
-    .webp({ quality: 90 })
-    .toBuffer();
-
-  // 2. Generate Medium Variant (max width 1280px, stripped of EXIF)
-  const mediumWebpBuffer = await sharp(orientedBuffer)
-    .resize({ width: 1280, withoutEnlargement: true })
-    .webp({ quality: 85 })
-    .toBuffer();
-
-  // 3. Generate Thumbnail Variant (fixed width 400px for grid, stripped of EXIF)
-  const thumbWebpBuffer = await sharp(orientedBuffer)
-    .resize({ width: 400, withoutEnlargement: true })
-    .webp({ quality: 80 })
-    .toBuffer();
-
-  // Object keys in SeaweedFS
-  const originalKey = `${storageKey}/original.webp`;
-  const mediumKey = `${storageKey}/medium.webp`;
-  const thumbKey = `${storageKey}/thumb.webp`;
-
-  const uploadPromises: Promise<any>[] = [
-    uploadToStorage(originalKey, originalWebpBuffer, 'image/webp'),
-    uploadToStorage(mediumKey, mediumWebpBuffer, 'image/webp'),
-    uploadToStorage(thumbKey, thumbWebpBuffer, 'image/webp'),
-  ];
-
-  // 4. Large Image Segmentation: Divide into 10 horizontal row segments
-  const isLarge = width >= 1500 || height >= 1500 || width * height >= 2_000_000;
-  let segmentationData: {
-    isSegmented: boolean;
-    segmentCount: number;
-    segments: ImageSegmentMeta[];
-  } | undefined = undefined;
-
-  if (isLarge) {
-    const segmentCount = 10;
-    const sliceHeight = Math.floor(height / segmentCount);
-    const segmentsMeta: ImageSegmentMeta[] = [];
-
-    for (let i = 0; i < segmentCount; i++) {
-      const top = i * sliceHeight;
-      const currentSliceHeight = i === segmentCount - 1 ? height - top : sliceHeight;
-      const segKey = `${storageKey}/segment_${i}.webp`;
-
-      const segPromise = sharp(orientedBuffer)
-        .extract({ left: 0, top, width, height: currentSliceHeight })
-        .webp({ quality: 85 })
-        .toBuffer()
-        .then(async (segBuf) => {
-          await uploadToStorage(segKey, segBuf, 'image/webp');
-        });
-
-      uploadPromises.push(segPromise);
-
-      segmentsMeta.push({
-        index: i,
-        key: segKey,
-        top,
-        height: currentSliceHeight,
-        width,
-      });
+    const meta = await basePipeline.metadata();
+    let width = meta.width || validated.width;
+    let height = meta.height || validated.height;
+    if (meta.orientation && meta.orientation >= 5 && meta.orientation <= 8) {
+      [width, height] = [height, width];
     }
 
-    segmentationData = {
-      isSegmented: true,
-      segmentCount,
-      segments: segmentsMeta,
+    // 1. thumb (400px wide, lanczos3, quality: 78, smartSubsample: true, effort: 4)
+    const thumbPromise = basePipeline
+      .clone()
+      .resize({
+        width: 400,
+        withoutEnlargement: true,
+        kernel: sharp.kernel.lanczos3,
+      })
+      .webp({ quality: 78, smartSubsample: true, effort: 4 })
+      .toBuffer();
+
+    // 2. thumb_2x (800px wide for 2x Retina/HiDPI, lanczos3, quality: 78, smartSubsample: true, effort: 4)
+    const thumb2xPromise = basePipeline
+      .clone()
+      .resize({
+        width: 800,
+        withoutEnlargement: true,
+        kernel: sharp.kernel.lanczos3,
+      })
+      .webp({ quality: 78, smartSubsample: true, effort: 4 })
+      .toBuffer();
+
+    // 3. display (1440px max width, quality: 84, smartSubsample: true, effort: 4)
+    const displayPromise = basePipeline
+      .clone()
+      .resize({
+        width: 1440,
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 84, smartSubsample: true, effort: 4 })
+      .toBuffer();
+
+    // 4. original (native resolution WebP: lossless for PNG/GIF/lossless WebP, high quality lossy for others)
+    const isLosslessSource = ['image/png', 'image/gif', 'image/webp'].includes(validated.detectedMime);
+    const originalPromise = isLosslessSource
+      ? basePipeline.clone().webp({ lossless: true, effort: 4 }).toBuffer()
+      : basePipeline.clone().webp({ quality: 92, smartSubsample: true, effort: 4 }).toBuffer();
+
+    // 5. lqip (16px preview image stored directly in SeaweedFS for instant blurred placeholders)
+    const lqipPromise = basePipeline
+      .clone()
+      .resize({
+        width: 16,
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 20, effort: 2 })
+      .toBuffer();
+
+    // Await all variant buffers generated concurrently from the single decoded pipeline
+    const [thumbBuf, thumb2xBuf, displayBuf, originalBuf, lqipBuf] = await Promise.all([
+      thumbPromise,
+      thumb2xPromise,
+      displayPromise,
+      originalPromise,
+      lqipPromise,
+    ]);
+
+    // Object keys in SeaweedFS
+    const originalKey = `${storageKey}/original.webp`;
+    const displayKey = `${storageKey}/display.webp`;
+    const thumbKey = `${storageKey}/thumb.webp`;
+    const thumb2xKey = `${storageKey}/thumb_2x.webp`;
+    const lqipKey = `${storageKey}/lqip.webp`;
+
+    const uploadPromises: Promise<any>[] = [
+      uploadToStorage(originalKey, originalBuf, 'image/webp'),
+      uploadToStorage(displayKey, displayBuf, 'image/webp'),
+      uploadToStorage(thumbKey, thumbBuf, 'image/webp'),
+      uploadToStorage(thumb2xKey, thumb2xBuf, 'image/webp'),
+      uploadToStorage(lqipKey, lqipBuf, 'image/webp'),
+    ];
+
+    // 6. Large Image Segmentation: Divide into 10 horizontal row segments
+    const isLarge = width >= 1500 || height >= 1500 || width * height >= 2_000_000;
+    let segmentationData: {
+      isSegmented: boolean;
+      segmentCount: number;
+      segments: ImageSegmentMeta[];
+    } | undefined = undefined;
+
+    if (isLarge) {
+      const segmentCount = 10;
+      const sliceHeight = Math.floor(height / segmentCount);
+      const segmentsMeta: ImageSegmentMeta[] = [];
+
+      for (let i = 0; i < segmentCount; i++) {
+        const top = i * sliceHeight;
+        const currentSliceHeight = i === segmentCount - 1 ? height - top : sliceHeight;
+        const segKey = `${storageKey}/segment_${i}.webp`;
+
+        const segPromise = basePipeline
+          .clone()
+          .extract({ left: 0, top, width, height: currentSliceHeight })
+          .webp({ quality: 85, effort: 4 })
+          .toBuffer()
+          .then(async (segBuf) => {
+            await uploadToStorage(segKey, segBuf, 'image/webp');
+          });
+
+        uploadPromises.push(segPromise);
+
+        segmentsMeta.push({
+          index: i,
+          key: segKey,
+          top,
+          height: currentSliceHeight,
+          width,
+        });
+      }
+
+      segmentationData = {
+        isSegmented: true,
+        segmentCount,
+        segments: segmentsMeta,
+      };
+    }
+
+    // Await all uploads to SeaweedFS concurrently
+    await Promise.all(uploadPromises);
+
+    const cleanTitle = title?.trim() || originalFile.originalname.replace(/\.[^/.]+$/, '');
+    const aspectRatio = Number((width / height).toFixed(4));
+
+    return {
+      index,
+      status: 'success',
+      originalFileName: originalFile.originalname,
+      storageKey,
+      title: cleanTitle,
+      mimeType: 'image/webp',
+      fileSizeBytes: originalBuf.length,
+      width,
+      height,
+      aspectRatio,
+      variants: {
+        thumb: thumbKey,
+        thumb_2x: thumb2xKey,
+        display: displayKey,
+        original: originalKey,
+        lqip: lqipKey,
+        segmentation: segmentationData,
+      },
     };
-  }
-
-  // Await all uploads to SeaweedFS concurrently
-  await Promise.all(uploadPromises);
-
-  const cleanTitle = title?.trim() || originalFile.originalname.replace(/\.[^/.]+$/, '');
-  const aspectRatio = Number((width / height).toFixed(4));
-
-  return {
-    index,
-    status: 'success',
-    originalFileName: originalFile.originalname,
-    storageKey,
-    title: cleanTitle,
-    mimeType: 'image/webp',
-    fileSizeBytes: originalWebpBuffer.length,
-    width,
-    height,
-    aspectRatio,
-    variants: {
-      original: originalKey,
-      medium: mediumKey,
-      thumb: thumbKey,
-      segmentation: segmentationData,
-    },
-  };
+  });
 }

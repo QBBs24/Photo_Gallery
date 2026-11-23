@@ -120,12 +120,20 @@ export const GalleryView: React.FC = () => {
           <div
             key={photo.id}
             className="w-full sm:w-[320px] aspect-[4/3] group relative bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800/80 hover:border-neutral-600 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-950/10"
+            style={{
+              backgroundImage: `url(${getImageUrl(photo.storageKey, 'lqip')})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
           >
             <Link to={`/photos/${photo.id}`} className="block w-full h-full">
               <img
                 src={getImageUrl(photo.storageKey, 'thumb')}
-                alt=""
+                srcSet={`${getImageUrl(photo.storageKey, 'thumb')} 1x, ${getImageUrl(photo.storageKey, 'thumb_2x')} 2x`}
+                alt={photo.title || ''}
                 loading="lazy"
+                width={photo.width}
+                height={photo.height}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </Link>

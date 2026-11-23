@@ -26,6 +26,18 @@ export async function fetchPhotoById(id: string): Promise<Photo> {
   return data.photo;
 }
 
+export async function deletePhoto(id: string): Promise<void> {
+  const headers = getAuthHeader();
+  const res = await fetch(`${API_BASE}/photos/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to delete photo.');
+  }
+}
+
 export async function uploadPhotos(
   formData: FormData,
   onProgress?: (percent: number) => void

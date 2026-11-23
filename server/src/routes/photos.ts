@@ -8,7 +8,7 @@ import {
   ValidatedFile,
   ProcessedVariantResult,
 } from '../services/imageProcessor.js';
-import { getFromStorage } from '../services/storage.js';
+import { getFromStorage, deleteFromStorage } from '../services/storage.js';
 
 const router = Router();
 
@@ -201,6 +201,77 @@ router.get('/:id', async (req, res) => {
   } catch (error: any) {
     console.error('Photo lookup error:', error);
     res.status(500).json({ error: 'Failed to retrieve image details.' });
+  }
+});
+
+/**
+ * DELETE /api/photos/:id
+ * Delete photo: ONLY THE UPLOADER OF THE IMAGE CAN DELETE THEIR IMAGE
+ */
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'You must be logged in to delete an image.',
+      });
+    }
+
+    const { id } = req.params;
+
+    const photo = await prisma.photo.findUnique({
+      where: { id },
+    });
+
+    if (!photo) {
+      return res.status(404).json({
+        error: 'The requested photo could not be found.',
+      });
+    }
+
+    // Verify ownership: ONLY the uploader can delete their image
+    if (photo.userId !== req.user.id) {
+      return res.status(403).json({
+        error: 'You do not have permission to delete this photo. Only the uploader can delete their image.',
+      });
+    }
+
+    // Delete object files from SeaweedFS
+    const keysToDelete: string[] = [];
+    const variants = photo.variants as any;
+    if (variants) {
+      if (typeof variants.original === 'string') keysToDelete.push(variants.original);
+      if (typeof variants.medium === 'string') keysToDelete.push(variants.medium);
+      if (typeof variants.thumb === 'string') keysToDelete.push(variants.thumb);
+      if (variants.segmentation?.segments && Array.isArray(variants.segmentation.segments)) {
+        for (const seg of variants.segmentation.segments) {
+          if (seg.key) keysToDelete.push(seg.key);
+        }
+      }
+    }
+
+    // Attempt storage deletion (log warnings if any single key fails, but proceed)
+    await Promise.allSettled(
+      keysToDelete.map(async (key) => {
+        try {
+          await deleteFromStorage(key);
+        } catch (storageErr) {
+          console.warn(`[Storage] Failed to delete object ${key}:`, storageErr);
+        }
+      })
+    );
+
+    // Delete from database
+    await prisma.photo.delete({
+      where: { id },
+    });
+
+    res.json({
+      success: true,
+      message: 'Photo deleted successfully.',
+    });
+  } catch (error: any) {
+    console.error('Delete photo error:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete photo.' });
   }
 });
 

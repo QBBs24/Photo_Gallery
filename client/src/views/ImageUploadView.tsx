@@ -173,7 +173,7 @@ export const ImageUploadView: React.FC = () => {
           <span>Upload Images</span>
         </h1>
         <p className="text-sm text-neutral-400 mt-1.5">
-          Upload 1 or 2 images per request. Converted to WebP and stored safely in SeaweedFS.
+          Upload 1 or 2 at a time.
         </p>
       </div>
 
@@ -225,7 +225,7 @@ export const ImageUploadView: React.FC = () => {
         <div className="mb-8 p-6 rounded-2xl bg-emerald-950/30 border border-emerald-800/80 shadow-2xl animate-in fade-in duration-300">
           <div className="flex items-center gap-2.5 text-emerald-400 font-bold text-base mb-4">
             <CheckCircle2 className="w-6 h-6" />
-            <span>Upload Completed Successfully! Evidence per file index:</span>
+            <span>Upload completed successfully!</span>
           </div>
 
           <div className="space-y-4">
@@ -267,15 +267,6 @@ export const ImageUploadView: React.FC = () => {
                       {(ev.sizeBytes / 1024).toFixed(1)} KB
                     </span>
                   </div>
-                </div>
-
-                <div className="pt-2 border-t border-neutral-900">
-                  <span className="text-neutral-500 block text-[10px] uppercase font-semibold">
-                    Storage Key (Server Reference Code)
-                  </span>
-                  <span className="font-mono text-neutral-300 select-all break-all text-[11px]">
-                    {ev.storageKey}
-                  </span>
                 </div>
               </div>
             ))}

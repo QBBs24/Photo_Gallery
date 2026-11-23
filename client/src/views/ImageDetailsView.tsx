@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { fetchPhotoById, getImageUrl } from '../services/api';
+import { fetchPhotoById, getImageUrl, deletePhoto } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Photo } from '../types';
 import { FlickrLightbox } from '../components/FlickrLightbox';
 import {
@@ -12,16 +13,21 @@ import {
   FileCheck2,
   Share2,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 
 export const ImageDetailsView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPhoto() {
@@ -42,6 +48,23 @@ export const ImageDetailsView: React.FC = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const isUploader = Boolean(
+    user && photo && (photo.user?.id === user.id || photo.userId === user.id)
+  );
+
+  const handleDelete = async () => {
+    if (!photo) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deletePhoto(photo.id);
+      navigate('/');
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete image. Please try again.');
+      setDeleting(false);
+    }
   };
 
   if (loading) {
@@ -209,6 +232,62 @@ export const ImageDetailsView: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Delete Option for Uploader Only */}
+            {isUploader && (
+              <div className="pt-4 border-t border-neutral-800">
+                {deleteConfirm ? (
+                  <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/60 space-y-3">
+                    <div className="text-xs text-red-200 font-medium leading-relaxed">
+                      Are you sure you want to delete this image? This action permanently removes it.
+                    </div>
+                    {deleteError && (
+                      <div className="text-xs text-red-400 font-medium">{deleteError}</div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="flex-1 py-2 px-3 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-red-950"
+                      >
+                        {deleting ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Deleting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Confirm Delete</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteConfirm(false);
+                          setDeleteError(null);
+                        }}
+                        disabled={deleting}
+                        className="py-2 px-3 rounded-lg text-xs font-medium bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(true)}
+                    className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Image</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

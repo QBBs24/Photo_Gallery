@@ -9,6 +9,7 @@ import { LoginView } from './views/LoginView';
 import { PasswordResetView } from './views/PasswordResetView';
 import { GalleryView } from './views/GalleryView';
 import { ImageDetailsView } from './views/ImageDetailsView';
+import { ImageEditView } from './views/ImageEditView';
 import { ImageFullScreenView } from './views/ImageFullScreenView';
 import { ImageUploadView } from './views/ImageUploadView';
 
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
 
               {/* View 5: Image Details */}
               <Route path="/photos/:id" element={<ImageDetailsView />} />
+              <Route path="/photos/:id/edit" element={<ImageEditView />} />
 
               {/* View 6: Image Full-Screen (Flickr Style) */}
               <Route path="/photos/:id/fullscreen" element={<ImageFullScreenView />} />

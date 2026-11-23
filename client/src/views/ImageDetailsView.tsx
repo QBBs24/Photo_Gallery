@@ -14,6 +14,7 @@ import {
   Share2,
   Loader2,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 
 export const ImageDetailsView: React.FC = () => {
@@ -235,9 +236,17 @@ export const ImageDetailsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Delete Option for Uploader Only */}
+            {/* Uploader Actions: Edit & Delete (ONLY UPLOADER) */}
             {isUploader && (
-              <div className="pt-4 border-t border-neutral-800">
+              <div className="pt-4 border-t border-neutral-800 space-y-3">
+                <Link
+                  to={`/photos/${photo.id}/edit`}
+                  className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span>Edit Image</span>
+                </Link>
+
                 {deleteConfirm ? (
                   <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/60 space-y-3">
                     <div className="text-xs text-red-200 font-medium leading-relaxed">

@@ -38,6 +38,37 @@ export async function deletePhoto(id: string): Promise<void> {
   }
 }
 
+export interface EditPhotoPayload {
+  rotation?: number;
+  flipHorizontal?: boolean;
+  crop?: {
+    xPercent: number;
+    yPercent: number;
+    widthPercent: number;
+    heightPercent: number;
+  } | null;
+}
+
+export async function editPhoto(
+  id: string,
+  payload: EditPhotoPayload
+): Promise<{ success: boolean; photo: Photo }> {
+  const headers = {
+    ...getAuthHeader(),
+    'Content-Type': 'application/json',
+  };
+  const res = await fetch(`${API_BASE}/photos/${id}/edit`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to edit photo.');
+  }
+  return res.json();
+}
+
 export async function uploadPhotos(
   formData: FormData,
   onProgress?: (percent: number) => void

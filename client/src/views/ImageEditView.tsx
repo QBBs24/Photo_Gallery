@@ -8,7 +8,7 @@ import {
   RotateCcw,
   RotateCw,
   FlipHorizontal,
-  RefreshCw,
+  Pencil,
   Check,
   X,
   ArrowLeft,
@@ -37,11 +37,12 @@ export const ImageEditView: React.FC = () => {
 
   // Photo state
   const [photo, setPhoto] = useState<Photo | null>(null);
+  const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Edit transformation state
-  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270 (relative to 0)
+  const [rotation, setRotation] = useState(0); // Cumulative rotation in ±90° steps for smooth CSS animation
   const [flipH, setFlipH] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
   const [crop, setCrop] = useState<CropRect>(DEFAULT_CROP);
@@ -63,6 +64,7 @@ export const ImageEditView: React.FC = () => {
       try {
         const data = await fetchPhotoById(id);
         setPhoto(data);
+        setTitle(data.title || '');
       } catch (err: any) {
         setError(err.message || 'Unable to retrieve image details.');
       } finally {
@@ -77,28 +79,18 @@ export const ImageEditView: React.FC = () => {
     user && photo && (photo.user?.id === user.id || photo.userId === user.id)
   );
 
-  // Rotate handlers
+  // Rotate handlers: step in natural -90° / +90° increments so CSS rotates in the intended direction
   const handleRotateLeft = () => {
-    setRotation((prev) => (prev - 90 + 360) % 360);
+    setRotation((prev) => prev - 90);
   };
 
   const handleRotateRight = () => {
-    setRotation((prev) => (prev + 90) % 360);
+    setRotation((prev) => prev + 90);
   };
 
   // Flip handler
   const handleFlipHorizontal = () => {
     setFlipH((prev) => !prev);
-  };
-
-  // Reset handler
-  const handleReset = () => {
-    setRotation(0);
-    setFlipH(false);
-    setIsCropping(false);
-    setHasCropped(false);
-    setCrop(DEFAULT_CROP);
-    setSubmitError(null);
   };
 
   // Toggle crop
@@ -203,8 +195,11 @@ export const ImageEditView: React.FC = () => {
     setIsSubmitting(true);
     setSubmitError(null);
 
+    const normalizedRotation = (((rotation % 360) + 360) % 360);
+
     const payload: EditPhotoPayload = {
-      rotation,
+      title: title.trim() || photo.title,
+      rotation: normalizedRotation,
       flipHorizontal: flipH,
       crop: hasCropped
         ? {
@@ -277,28 +272,39 @@ export const ImageEditView: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* 1. Title bar showing the title of the image on top */}
-      <div className="mb-6 pb-4 border-b border-neutral-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* 1. Title bar showing the title of the image on top (Click to edit) */}
+      <div className="mb-6 pb-4 border-b border-neutral-800 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <button
             onClick={handleCancel}
-            className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+            className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors shrink-0"
             title="Cancel and return"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
-              Editing Image
+          <div className="flex-1 max-w-xl">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 block mb-1">
+              Image Name (Click to edit)
             </span>
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate max-w-xl">
-              {photo.title}
-            </h1>
+            <div className="relative group flex items-center">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter image title"
+                className="w-full bg-neutral-900/60 hover:bg-neutral-900 focus:bg-neutral-950 border border-neutral-800 hover:border-neutral-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 pr-9 text-lg sm:text-xl font-bold text-white transition-all outline-none"
+              />
+              <Pencil className="w-4 h-4 text-neutral-500 group-hover:text-indigo-400 pointer-events-none absolute right-3" />
+            </div>
           </div>
         </div>
 
-        <div className="text-xs text-neutral-400 hidden sm:block">
-          {rotation !== 0 && <span className="mr-3 font-mono text-indigo-400">Rotated {rotation}°</span>}
+        <div className="text-xs text-neutral-400 hidden sm:block shrink-0">
+          {(((rotation % 360) + 360) % 360) !== 0 && (
+            <span className="mr-3 font-mono text-indigo-400">
+              Rotated {(((rotation % 360) + 360) % 360)}°
+            </span>
+          )}
           {flipH && <span className="mr-3 text-indigo-400 font-medium">Flipped</span>}
           {hasCropped && <span className="text-emerald-400 font-medium">Cropped</span>}
         </div>
@@ -311,9 +317,9 @@ export const ImageEditView: React.FC = () => {
         </div>
       )}
 
-      {/* Main Workspace: Left Vertical Toolbar (5 buttons) + Image Canvas Area */}
+      {/* Main Workspace: Left Vertical Toolbar + Image Canvas Area */}
       <div className="flex flex-col sm:flex-row items-stretch gap-6">
-        {/* 2. VERTICAL feature bar with 5 buttons on the left of the image */}
+        {/* 2. VERTICAL feature bar on the left of the image */}
         <aside className="w-full sm:w-16 shrink-0 flex flex-row sm:flex-col items-center justify-center sm:justify-start gap-2.5 p-2 rounded-2xl bg-neutral-900/90 border border-neutral-800 backdrop-blur-md shadow-lg">
           {/* Button 1: Crop */}
           <button
@@ -365,17 +371,6 @@ export const ImageEditView: React.FC = () => {
           >
             <FlipHorizontal className="w-5 h-5" />
             <span className="text-[9px] uppercase tracking-tighter">Flip</span>
-          </button>
-
-          {/* Button 5: Reset */}
-          <button
-            type="button"
-            onClick={handleReset}
-            title="Reset all adjustments"
-            className="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-neutral-400 hover:text-amber-400 hover:bg-neutral-800 transition-colors sm:mt-auto"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span className="text-[9px] uppercase tracking-tighter">Reset</span>
           </button>
         </aside>
 

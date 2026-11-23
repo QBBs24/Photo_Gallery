@@ -39,6 +39,7 @@ export async function deletePhoto(id: string): Promise<void> {
 }
 
 export interface EditPhotoPayload {
+  title?: string;
   rotation?: number;
   flipHorizontal?: boolean;
   crop?: {

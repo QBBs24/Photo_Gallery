@@ -237,7 +237,8 @@ router.post('/:id/edit', authenticate, async (req: AuthRequest, res: Response) =
       });
     }
 
-    const { rotation, flipHorizontal, crop } = req.body;
+    const { rotation, flipHorizontal, crop, title } = req.body;
+    const cleanTitle = typeof title === 'string' && title.trim() ? title.trim() : photo.title;
 
     // 1. Fetch original WebP buffer from SeaweedFS
     const originalObjectKey = (photo.variants as any)?.original || `${photo.storageKey}/original.webp`;
@@ -329,12 +330,13 @@ router.post('/:id/edit', authenticate, async (req: AuthRequest, res: Response) =
     );
 
     // 5. Generate and upload all 5 optimal variants under new storageKey
-    const result = await processAndUploadImage(validated, 0, photo.title);
+    const result = await processAndUploadImage(validated, 0, cleanTitle);
 
-    // 6. Update database record with new storageKey and dimensions
+    // 6. Update database record with new title, storageKey and dimensions
     const updatedPhoto = await prisma.photo.update({
       where: { id },
       data: {
+        title: cleanTitle,
         storageKey: validated.storageKey,
         width: result.width,
         height: result.height,

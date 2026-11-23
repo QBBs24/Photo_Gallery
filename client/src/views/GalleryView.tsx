@@ -121,7 +121,7 @@ export const GalleryView: React.FC = () => {
             key={photo.id}
             className="w-full sm:w-[320px] aspect-[4/3] group relative bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800/80 hover:border-neutral-600 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-950/10"
             style={{
-              backgroundImage: `url(${photo.variants?.lqipDataUri ?? getImageUrl(photo.storageKey, 'lqip')})`,
+              backgroundImage: `url(${getImageUrl(photo.storageKey, 'lqip')})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}

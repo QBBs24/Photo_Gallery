@@ -29,7 +29,6 @@ export interface Photo {
     display?: string;
     original: string;
     lqip?: string;
-    lqipDataUri?: string;
     segmentation?: {
       isSegmented: boolean;
       segmentCount: number;

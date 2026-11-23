@@ -20,6 +20,7 @@ export const FlickrLightbox: React.FC<FlickrLightboxProps> = ({
 }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [originalReady, setOriginalReady] = useState(false);
 
   const currentPhoto = photos[currentIndex];
 
@@ -55,18 +56,24 @@ export const FlickrLightbox: React.FC<FlickrLightboxProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, handleNext, handlePrev]);
 
-  // Lock body scroll when lightbox is active
+    // Reset when the photo changes
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-      setIsZoomed(false);
-    }
-    return () => {
-      document.body.style.overflow = '';
+    setOriginalReady(false);
+  }, [currentPhoto?.storageKey]);
+
+  // Preload the original only after the user zooms in
+  useEffect(() => {
+    if (!isOpen || !isZoomed || !currentPhoto || originalReady) return;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setOriginalReady(true);
     };
-  }, [isOpen]);
+    img.src = getImageUrl(currentPhoto.storageKey, 'original');
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isZoomed, currentPhoto?.storageKey, originalReady]);
 
   if (!isOpen || !currentPhoto) return null;
 
@@ -147,7 +154,7 @@ export const FlickrLightbox: React.FC<FlickrLightboxProps> = ({
           onClick={() => setIsZoomed(!isZoomed)}
         >
           <img
-            src={getImageUrl(currentPhoto.storageKey, 'original')}
+            src={getImageUrl(currentPhoto.storageKey, originalReady ? 'original' : 'display')}
             alt={currentPhoto.title}
             className={`rounded-sm shadow-2xl transition-all duration-300 object-contain ${
               isZoomed

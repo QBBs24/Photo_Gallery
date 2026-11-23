@@ -53,6 +53,7 @@ export interface ProcessedVariantResult {
     display: string;
     original: string;
     lqip: string;
+    lqipDataUri: string;
     segmentation?: {
       isSegmented: boolean;
       segmentCount: number;
@@ -294,6 +295,7 @@ export async function processAndUploadImage(
 
     const cleanTitle = title?.trim() || originalFile.originalname.replace(/\.[^/.]+$/, '');
     const aspectRatio = Number((width / height).toFixed(4));
+    const lqipDataUri = `data:image/webp;base64,${lqipBuf.toString('base64')}`;
 
     return {
       index,
@@ -312,6 +314,7 @@ export async function processAndUploadImage(
         display: displayKey,
         original: originalKey,
         lqip: lqipKey,
+        lqipDataUri,
         segmentation: segmentationData,
       },
     };

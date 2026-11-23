@@ -44,7 +44,7 @@ model Photo {
   width            Int
   height           Int
   aspectRatio      Float
-  variants         Json     // Relative variant keys: { "original": "...", "medium": "...", "thumb": "..." }
+    variants         Json     // { thumb, thumb_2x, display, original, lqip, segmentation }
   userId           String?
   user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt        DateTime @default(now())

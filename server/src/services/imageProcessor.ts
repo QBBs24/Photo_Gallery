@@ -24,6 +24,14 @@ export interface ValidatedFile {
   storageKey: string;
 }
 
+export interface ImageSegmentMeta {
+  index: number;
+  key: string;
+  top: number;
+  height: number;
+  width: number;
+}
+
 export interface ProcessedVariantResult {
   index: number;
   status: 'success';
@@ -39,12 +47,17 @@ export interface ProcessedVariantResult {
     original: string;
     medium: string;
     thumb: string;
+    segmentation?: {
+      isSegmented: boolean;
+      segmentCount: number;
+      segments: ImageSegmentMeta[];
+    };
   };
 }
 
 /**
- * Stage 1: Validate file binaries and pixel limits without saving anything
- * If any file fails, throws an error with a natural language message.
+ * Stage 1: Validate file binaries, pre-decode pixel limits, and verify integrity.
+ * If any check fails, throws an error with a natural language message.
  */
 export async function validateImageFile(
   file: Express.Multer.File,
@@ -59,14 +72,15 @@ export async function validateImageFile(
     );
   }
 
-  // 2. Pixel Limit Verification with Sharp pre-decode gate
+  // 2. Pixel Limit Check: Check height * width first before decoding entirely
+  let metadata: sharp.Metadata;
   try {
     const pipeline = sharp(file.buffer, {
       limitInputPixels: MAX_PIXELS,
       failOn: 'error',
     });
 
-    const metadata = await pipeline.metadata();
+    metadata = await pipeline.metadata();
 
     if (!metadata.width || !metadata.height) {
       throw new Error(
@@ -76,72 +90,151 @@ export async function validateImageFile(
 
     const totalPixels = metadata.width * metadata.height;
     if (totalPixels > MAX_PIXELS) {
+      // Exact required message
       throw new Error(
-        `The image '${file.originalname}' exceeds the maximum allowed resolution of 40 million pixels (detected ${totalPixels.toLocaleString()} pixels). The image was rejected before decoding.`
+        `Image exceeds the maximum number of pixels allowed. Please resize your image and try again.`
       );
     }
-
-    const storageKey = nanoid(21);
-
-    return {
-      originalFile: file,
-      detectedMime: typeResult.mime,
-      width: metadata.width,
-      height: metadata.height,
-      pixels: totalPixels,
-      storageKey,
-    };
   } catch (err: any) {
-    if (err.message && err.message.toLowerCase().includes('pixel limit')) {
+    if (
+      err.message &&
+      (err.message.includes('maximum number of pixels') ||
+        err.message.toLowerCase().includes('pixel limit') ||
+        err.message.toLowerCase().includes('input image exceeds pixel limit'))
+    ) {
       throw new Error(
-        `The image '${file.originalname}' exceeds the maximum allowed resolution of 40 million pixels. The image was rejected before decoding.`
+        `Image exceeds the maximum number of pixels allowed. Please resize your image and try again.`
       );
     }
-    throw err;
+    throw new Error(
+      `The uploaded file '${file.originalname}' appears to be corrupted or broken and could not be decoded. Please provide a valid, intact image.`
+    );
   }
+
+  // 3. Decoding Check: Deny broken images even if initial signature/metadata is present
+  try {
+    // Strictly verify full stream decode with failOn: 'error'
+    await sharp(file.buffer, {
+      limitInputPixels: MAX_PIXELS,
+      failOn: 'error',
+    })
+      .rotate()
+      .stats();
+  } catch (decodeErr: any) {
+    if (decodeErr.message && decodeErr.message.includes('maximum number of pixels')) {
+      throw decodeErr;
+    }
+    throw new Error(
+      `The uploaded file '${file.originalname}' appears to be corrupted or broken and could not be decoded. Please provide a valid, intact image.`
+    );
+  }
+
+  const storageKey = nanoid(21);
+
+  return {
+    originalFile: file,
+    detectedMime: typeResult.mime,
+    width: metadata.width,
+    height: metadata.height,
+    pixels: metadata.width * metadata.height,
+    storageKey,
+  };
 }
 
 /**
- * Stage 2: Convert to WebP, generate variants, and upload to SeaweedFS
+ * Stage 2: Convert to WebP, rotate according to EXIF, strip EXIF metadata,
+ * create standard variants, and for large images slice into 10 row segments.
  */
 export async function processAndUploadImage(
   validated: ValidatedFile,
   index: number,
   title?: string
 ): Promise<ProcessedVariantResult> {
-  const { originalFile, width, height, storageKey } = validated;
+  const { originalFile, storageKey } = validated;
 
-  // 1. Generate WebP Original (highest fidelity)
-  const originalWebpBuffer = await sharp(originalFile.buffer, { limitInputPixels: MAX_PIXELS })
-    .rotate() // Auto-orient according to EXIF
+  // Re-orient buffer based on EXIF to get normalized orientation & strip EXIF metadata
+  const orientedBuffer = await sharp(originalFile.buffer, { limitInputPixels: MAX_PIXELS })
+    .rotate() // Auto-orient based on EXIF tags
+    .toBuffer();
+
+  const orientedMeta = await sharp(orientedBuffer).metadata();
+  const width = orientedMeta.width || validated.width;
+  const height = orientedMeta.height || validated.height;
+
+  // 1. Generate WebP Original (highest fidelity, stripped of EXIF)
+  const originalWebpBuffer = await sharp(orientedBuffer)
     .webp({ quality: 90 })
     .toBuffer();
 
-  // 2. Generate Medium Variant (max width 1280px)
-  const mediumWebpBuffer = await sharp(originalFile.buffer, { limitInputPixels: MAX_PIXELS })
-    .rotate()
+  // 2. Generate Medium Variant (max width 1280px, stripped of EXIF)
+  const mediumWebpBuffer = await sharp(orientedBuffer)
     .resize({ width: 1280, withoutEnlargement: true })
     .webp({ quality: 85 })
     .toBuffer();
 
-  // 3. Generate Thumbnail Variant (fixed width 400px for masonry/grid)
-  const thumbWebpBuffer = await sharp(originalFile.buffer, { limitInputPixels: MAX_PIXELS })
-    .rotate()
+  // 3. Generate Thumbnail Variant (fixed width 400px for grid, stripped of EXIF)
+  const thumbWebpBuffer = await sharp(orientedBuffer)
     .resize({ width: 400, withoutEnlargement: true })
     .webp({ quality: 80 })
     .toBuffer();
 
-  // Object keys in SeaweedFS (relative storage paths, no host URLs)
+  // Object keys in SeaweedFS
   const originalKey = `${storageKey}/original.webp`;
   const mediumKey = `${storageKey}/medium.webp`;
   const thumbKey = `${storageKey}/thumb.webp`;
 
-  // Upload variants to SeaweedFS in parallel
-  await Promise.all([
+  const uploadPromises: Promise<any>[] = [
     uploadToStorage(originalKey, originalWebpBuffer, 'image/webp'),
     uploadToStorage(mediumKey, mediumWebpBuffer, 'image/webp'),
     uploadToStorage(thumbKey, thumbWebpBuffer, 'image/webp'),
-  ]);
+  ];
+
+  // 4. Large Image Segmentation: Divide into 10 horizontal row segments
+  const isLarge = width >= 1500 || height >= 1500 || width * height >= 2_000_000;
+  let segmentationData: {
+    isSegmented: boolean;
+    segmentCount: number;
+    segments: ImageSegmentMeta[];
+  } | undefined = undefined;
+
+  if (isLarge) {
+    const segmentCount = 10;
+    const sliceHeight = Math.floor(height / segmentCount);
+    const segmentsMeta: ImageSegmentMeta[] = [];
+
+    for (let i = 0; i < segmentCount; i++) {
+      const top = i * sliceHeight;
+      const currentSliceHeight = i === segmentCount - 1 ? height - top : sliceHeight;
+      const segKey = `${storageKey}/segment_${i}.webp`;
+
+      const segPromise = sharp(orientedBuffer)
+        .extract({ left: 0, top, width, height: currentSliceHeight })
+        .webp({ quality: 85 })
+        .toBuffer()
+        .then(async (segBuf) => {
+          await uploadToStorage(segKey, segBuf, 'image/webp');
+        });
+
+      uploadPromises.push(segPromise);
+
+      segmentsMeta.push({
+        index: i,
+        key: segKey,
+        top,
+        height: currentSliceHeight,
+        width,
+      });
+    }
+
+    segmentationData = {
+      isSegmented: true,
+      segmentCount,
+      segments: segmentsMeta,
+    };
+  }
+
+  // Await all uploads to SeaweedFS concurrently
+  await Promise.all(uploadPromises);
 
   const cleanTitle = title?.trim() || originalFile.originalname.replace(/\.[^/.]+$/, '');
   const aspectRatio = Number((width / height).toFixed(4));
@@ -161,6 +254,7 @@ export async function processAndUploadImage(
       original: originalKey,
       medium: mediumKey,
       thumb: thumbKey,
+      segmentation: segmentationData,
     },
   };
 }

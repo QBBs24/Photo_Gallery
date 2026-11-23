@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchGallery, getImageUrl } from '../services/api';
 import { Photo } from '../types';
 import { FlickrLightbox } from '../components/FlickrLightbox';
-import { Maximize2, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Sparkles, Maximize2 } from 'lucide-react';
 
 export const GalleryView: React.FC = () => {
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -66,6 +66,7 @@ export const GalleryView: React.FC = () => {
 
   const openLightboxAt = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setLightboxIndex(index);
     setLightboxOpen(true);
   };
@@ -78,9 +79,6 @@ export const GalleryView: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
             Explore Gallery <Sparkles className="w-5 h-5 text-pink-500 animate-pulse" />
           </h1>
-          <p className="text-sm text-neutral-400 mt-1">
-            Discover community photographs stored in SeaweedFS and converted to WebP
-          </p>
         </div>
         <Link
           to="/upload"
@@ -116,56 +114,30 @@ export const GalleryView: React.FC = () => {
         </div>
       )}
 
-      {/* Public Gallery Grid with Fixed-Width Cards */}
+      {/* Public Gallery Grid: Pure clean grid of only images (Fixed width 320px) */}
       <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,320px)] justify-center gap-6">
         {photos.map((photo, index) => (
           <div
             key={photo.id}
-            className="w-full sm:w-[320px] group bg-neutral-900/80 rounded-2xl overflow-hidden border border-neutral-800/80 hover:border-neutral-700 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-950/20 flex flex-col"
+            className="w-full sm:w-[320px] aspect-[4/3] group relative bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800/80 hover:border-neutral-600 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-950/10"
           >
-            {/* Image Container with fixed height or ratio */}
-            <div className="relative aspect-[4/3] bg-neutral-950 overflow-hidden">
-              <Link to={`/photos/${photo.id}`}>
-                <img
-                  src={getImageUrl(photo.storageKey, 'thumb')}
-                  alt={photo.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-              </Link>
+            <Link to={`/photos/${photo.id}`} className="block w-full h-full">
+              <img
+                src={getImageUrl(photo.storageKey, 'thumb')}
+                alt=""
+                loading="lazy"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            </Link>
 
-              {/* Hover Overlay with Flickr Full-screen trigger */}
-              <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">
-                <span className="text-xs font-medium text-white truncate max-w-[200px]">
-                  {photo.title}
-                </span>
-                <button
-                  onClick={(e) => openLightboxAt(index, e)}
-                  className="p-2 rounded-lg bg-neutral-900/90 hover:bg-neutral-800 text-white shadow-md hover:scale-110 transition-transform"
-                  title="View Fullscreen (Flickr Style)"
-                >
-                  <Maximize2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Photo Card Footer */}
-            <div className="p-3.5 flex items-center justify-between text-xs">
-              <div className="truncate pr-2">
-                <Link
-                  to={`/photos/${photo.id}`}
-                  className="font-semibold text-neutral-200 hover:text-white truncate block hover:underline"
-                >
-                  {photo.title}
-                </Link>
-                <span className="text-[11px] text-neutral-500">
-                  {photo.user?.username ? `@${photo.user.username}` : 'Anonymous'}
-                </span>
-              </div>
-              <span className="shrink-0 px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 font-mono text-[10px]">
-                WebP
-              </span>
-            </div>
+            {/* Subtle Quick Expand Button on Hover */}
+            <button
+              onClick={(e) => openLightboxAt(index, e)}
+              className="absolute bottom-3 right-3 p-2 rounded-xl bg-neutral-950/80 hover:bg-neutral-900 text-white opacity-0 group-hover:opacity-100 backdrop-blur-md border border-neutral-800 transition-all shadow-lg hover:scale-110"
+              title="Expand to Full Screen"
+            >
+              <Maximize2 className="w-4 h-4 text-pink-500" />
+            </button>
           </div>
         ))}
       </div>

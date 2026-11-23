@@ -69,7 +69,7 @@ export async function uploadPhotos(
   });
 }
 
-export function getImageUrl(storageKey: string, variant: 'thumb' | 'medium' | 'original'): string {
+export function getImageUrl(storageKey: string, variant: string): string {
   return `${API_BASE}/images/${storageKey}/${variant}`;
 }
 

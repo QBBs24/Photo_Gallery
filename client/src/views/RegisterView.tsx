@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, AlertCircle } from 'lucide-react';
+import { UserPlus, AlertCircle, Check } from 'lucide-react';
 
 export const RegisterView: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -14,6 +14,13 @@ export const RegisterView: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Password rules validation
+  const hasLength = password.length >= 8;
+  const hasNumber = /\d/.test(password);
+  const hasCapital = /[A-Z]/.test(password);
+  const hasSpecial = /[!@#$%^&*()<>]/.test(password);
+  const isPasswordValid = hasLength && hasNumber && hasCapital && hasSpecial;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -23,13 +30,13 @@ export const RegisterView: React.FC = () => {
       return;
     }
 
-    if (password !== passwordConfirm) {
-      setError('The passwords you entered do not match. Please ensure both fields are identical.');
+    if (!isPasswordValid) {
+      setError('Please ensure your password meets all required security conditions.');
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must contain at least 6 characters.');
+    if (password !== passwordConfirm) {
+      setError('The passwords you entered do not match. Please ensure both fields are identical.');
       return;
     }
 
@@ -118,9 +125,34 @@ export const RegisterView: React.FC = () => {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder="Enter secure password"
               className="w-full px-4 py-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
             />
+
+            {/* Password Restrictions Notice & Checklist */}
+            <div className="mt-2.5 p-3 rounded-xl bg-neutral-950/90 border border-neutral-800/80 text-[11px] space-y-1.5">
+              <span className="font-semibold text-neutral-400 block mb-1">
+                Password Restrictions:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-neutral-400">
+                <div className={`flex items-center gap-1.5 ${hasLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {hasLength ? <Check className="w-3.5 h-3.5 shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 ml-1 mr-1 shrink-0" />}
+                  <span>At least 8 characters</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {hasNumber ? <Check className="w-3.5 h-3.5 shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 ml-1 mr-1 shrink-0" />}
+                  <span>At least 1 number</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {hasCapital ? <Check className="w-3.5 h-3.5 shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 ml-1 mr-1 shrink-0" />}
+                  <span>1 capitalized letter</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {hasSpecial ? <Check className="w-3.5 h-3.5 shrink-0" /> : <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 ml-1 mr-1 shrink-0" />}
+                  <span>Special: !@#$%^&*()&lt;&gt;</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>

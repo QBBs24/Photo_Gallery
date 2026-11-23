@@ -31,13 +31,13 @@ export const LoginView: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to authenticate. Please check your credentials.');
+        throw new Error(data.error || 'Wrong username/email or password. Please try again.');
       }
 
       login(data.token, data.user);
       navigate('/');
     } catch (err: any) {
-      setError(err.message || 'An error occurred during login. Please try again.');
+      setError(err.message || 'Wrong username/email or password. Please try again.');
     } finally {
       setLoading(false);
     }

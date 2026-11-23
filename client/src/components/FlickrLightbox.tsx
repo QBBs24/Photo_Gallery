@@ -236,15 +236,6 @@ export const FlickrLightbox: React.FC<FlickrLightboxProps> = ({
                   })}
                 </p>
               </div>
-
-              <div className="pt-2 border-t border-neutral-800">
-                <span className="text-neutral-500 uppercase tracking-wider block font-semibold mb-1">
-                  Storage Key
-                </span>
-                <p className="text-neutral-400 font-mono text-[11px] break-all bg-neutral-950 p-2 rounded-lg border border-neutral-800">
-                  {currentPhoto.storageKey}
-                </p>
-              </div>
             </div>
           </div>
         )}

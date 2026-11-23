@@ -4,6 +4,14 @@ export interface User {
   email: string;
 }
 
+export interface ImageSegmentMeta {
+  index: number;
+  key: string;
+  top: number;
+  height: number;
+  width: number;
+}
+
 export interface Photo {
   id: string;
   storageKey: string;
@@ -19,6 +27,11 @@ export interface Photo {
     original: string;
     medium: string;
     thumb: string;
+    segmentation?: {
+      isSegmented: boolean;
+      segmentCount: number;
+      segments: ImageSegmentMeta[];
+    };
   };
   userId?: string | null;
   user?: {

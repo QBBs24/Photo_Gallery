@@ -23,9 +23,25 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
-    if (password.length < 6) {
+    // Strict Password Validation Rules
+    if (password.length < 8) {
       return res.status(400).json({
-        error: 'Password must be at least 6 characters in length.',
+        error: 'Password must be at least 8 characters in length.',
+      });
+    }
+    if (!/\d/.test(password)) {
+      return res.status(400).json({
+        error: 'Password must contain at least 1 number.',
+      });
+    }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({
+        error: 'Password must contain at least 1 capitalized letter.',
+      });
+    }
+    if (!/[!@#$%^&*()<>]/.test(password)) {
+      return res.status(400).json({
+        error: 'Password must contain at least 1 special character (!@#$%^&*()<>).',
       });
     }
 
@@ -109,14 +125,14 @@ router.post('/login', async (req: Request, res: Response) => {
 
     if (!user) {
       return res.status(401).json({
-        error: 'Invalid credentials. No user was found matching that username or email.',
+        error: 'Wrong username/email or password. Please try again.',
       });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({
-        error: 'Invalid password. Please verify your password and try again.',
+        error: 'Wrong username/email or password. Please try again.',
       });
     }
 
@@ -205,9 +221,24 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       });
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return res.status(400).json({
-        error: 'The new password must be at least 6 characters long.',
+        error: 'The new password must be at least 8 characters long.',
+      });
+    }
+    if (!/\d/.test(newPassword)) {
+      return res.status(400).json({
+        error: 'Password must contain at least 1 number.',
+      });
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({
+        error: 'Password must contain at least 1 capitalized letter.',
+      });
+    }
+    if (!/[!@#$%^&*()<>]/.test(newPassword)) {
+      return res.status(400).json({
+        error: 'Password must contain at least 1 special character (!@#$%^&*()<>).',
       });
     }
 

@@ -6,15 +6,18 @@ const router = Router();
 /**
  * GET /api/images/:storageKey/:variant
  * Serves WebP variants directly from SeaweedFS
- * :variant can be 'original', 'medium', or 'thumb'
+ * :variant can be 'original', 'medium', 'thumb', or 'segment_0'...'segment_9'
  */
 router.get('/:storageKey/:variant', async (req: Request, res: Response) => {
   try {
     const { storageKey, variant } = req.params;
 
-    if (!['original', 'medium', 'thumb'].includes(variant)) {
+    const isStandardVariant = ['original', 'medium', 'thumb'].includes(variant);
+    const isSegmentVariant = /^segment_[0-9]+$/.test(variant);
+
+    if (!isStandardVariant && !isSegmentVariant) {
       return res.status(400).json({
-        error: `Invalid image variant requested. Supported variants are 'thumb', 'medium', and 'original'.`,
+        error: `Invalid image variant requested. Supported variants are 'thumb', 'medium', 'original', or row segments.`,
       });
     }
 

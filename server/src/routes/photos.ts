@@ -95,7 +95,7 @@ router.post(
               width: item.width,
               height: item.height,
               aspectRatio: item.aspectRatio,
-              variants: item.variants,
+              variants: item.variants as any,
               userId: req.user!.id,
             },
           });

@@ -70,15 +70,20 @@ export const ImageDetailsView: React.FC = () => {
     );
   }
 
+  const isSegmented = Boolean(
+    photo.variants?.segmentation?.isSegmented &&
+      photo.variants?.segmentation?.segments?.length
+  );
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Navigation Breadcrumb */}
+      {/* Navigation Breadcrumb: Back button returns directly to home screen */}
       <div className="flex items-center justify-between mb-6">
         <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-400 hover:text-white transition-colors"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back
+          <ArrowLeft className="w-4 h-4" /> Back to Gallery
         </button>
 
         <button
@@ -93,32 +98,41 @@ export const ImageDetailsView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Image Stage (Left 2 columns) */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative group bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800 flex items-center justify-center min-h-[400px]">
-            <img
-              src={getImageUrl(photo.storageKey, 'medium')}
-              alt={photo.title}
-              className="w-full max-h-[70vh] object-contain cursor-pointer transition-transform duration-300 group-hover:scale-[1.01]"
-              onClick={() => setLightboxOpen(true)}
-            />
+          {/* Image Display Frame */}
+          <div className="relative bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800 flex items-center justify-center min-h-[350px]">
+            {isSegmented ? (
+              /* Large image rendered in 10 horizontal row-segment divs */
+              <div className="flex flex-col w-full overflow-hidden select-none">
+                {photo.variants.segmentation!.segments.map((_, idx) => (
+                  <div key={idx} className="w-full overflow-hidden leading-none m-0 p-0">
+                    <img
+                      src={getImageUrl(photo.storageKey, `segment_${idx}`)}
+                      alt={`${photo.title} - segment ${idx + 1}`}
+                      className="w-full h-auto block m-0 p-0"
+                      loading={idx < 3 ? 'eager' : 'lazy'}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Standard medium WebP variant */
+              <img
+                src={getImageUrl(photo.storageKey, 'medium')}
+                alt={photo.title}
+                className="w-full max-h-[70vh] object-contain"
+              />
+            )}
+          </div>
 
-            {/* Expand to Full-Screen Action Button (Flickr Style) */}
+          {/* Action Button: Placed cleanly directly below the picture */}
+          <div>
             <button
               onClick={() => setLightboxOpen(true)}
-              className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xl backdrop-blur-md border border-neutral-700/50 transition-all hover:scale-105 active:scale-95"
+              className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-pink-500/50 text-white shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
             >
               <Maximize2 className="w-4 h-4 text-pink-500" />
               <span>Expand to Full Screen</span>
             </button>
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-neutral-500 px-2">
-            <span>Tip: Click on the image to open the Flickr-style lightbox</span>
-            <Link
-              to={`/photos/${photo.id}/fullscreen`}
-              className="text-pink-400 hover:text-pink-300 font-medium"
-            >
-              Open dedicated full-screen view →
-            </Link>
           </div>
         </div>
 
@@ -170,7 +184,7 @@ export const ImageDetailsView: React.FC = () => {
                     <span>Format</span>
                   </div>
                   <div className="font-mono font-semibold text-emerald-400 uppercase">
-                    WebP (Converted)
+                    WebP
                   </div>
                 </div>
 
@@ -194,26 +208,7 @@ export const ImageDetailsView: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Storage Key Constraint Demonstration */}
-              <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-xs">
-                <span className="text-[10px] uppercase font-bold text-neutral-500 block mb-1">
-                  Server Storage Key Code (No absolute path stored)
-                </span>
-                <span className="font-mono text-neutral-300 break-all select-all text-[11px]">
-                  {photo.storageKey}
-                </span>
-              </div>
             </div>
-
-            {/* Action Trigger */}
-            <button
-              onClick={() => setLightboxOpen(true)}
-              className="w-full py-3 rounded-xl font-semibold text-sm bg-gradient-to-r from-blue-600 via-indigo-600 to-pink-600 hover:opacity-95 text-white shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 transition-transform active:scale-[0.99]"
-            >
-              <Maximize2 className="w-4 h-4" />
-              <span>Full Screen Lightbox</span>
-            </button>
           </div>
         </div>
       </div>

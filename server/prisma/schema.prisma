@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String               @id @default(uuid())
+  username     String               @unique
+  email        String               @unique
+  passwordHash String
+  photos       Photo[]
+  resetTokens  PasswordResetToken[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model Photo {
+  id               String   @id @default(uuid())
+  storageKey       String   @unique // Server-generated unique identifier code
+  title            String
+  description      String?
+  originalFileName String
+  mimeType         String   @default("image/webp")
+  fileSizeBytes    Int
+  width            Int
+  height           Int
+  aspectRatio      Float
+  variants         Json     // Relative variant keys: { "original": "...", "medium": "...", "thumb": "..." }
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("photos")
+}

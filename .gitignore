@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Production Builds
+dist/
+build/
+
+# SeaweedFS Data & Binaries
+seaweedfs/bin/
+seaweedfs/data/
+seaweedfs/logs/
+seaweedfs/config/s3.json
+
+# Temporary & Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
